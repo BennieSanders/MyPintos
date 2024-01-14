@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <threads/synch.h>
+
 
 /** States in a thread's life cycle. */
 enum thread_status
@@ -23,6 +25,26 @@ typedef int tid_t;
 #define PRI_MIN 0                       /**< Lowest priority. */
 #define PRI_DEFAULT 31                  /**< Default priority. */
 #define PRI_MAX 63                      /**< Highest priority. */
+
+/* Our Implementatio for exec and wait:
+Child process for a parent's process which does fork */
+struct child
+  {
+    tid_t tid;                           /* tid of the thread */
+    bool isrun;                          /* whether the child's thread is run successfully */
+    struct list_elem child_elem;         /* list of children */
+    struct semaphore *sema;               /* semaphore to control waiting */
+    int store_exit;                      /* the exit status of child thread */
+  };
+
+/* File that the thread open */
+struct thread_file
+  {
+    int fd;
+    struct file* file;
+    struct list_elem file_elem;
+  };
+
 
 /** A kernel thread or user process.
 
@@ -90,11 +112,22 @@ struct thread
     int priority;                       /**< Priority. */
     struct list_elem allelem;           /**< List element for all threads list. */
     int64_t block_ticks;                /**< Time of sleep   */
-    int base_priority;
-    struct list locks;
-    struct lock *lock_waiting;
+    int base_priority;                 /**Base priority*/
+    struct list locks;                 /* Locks that the thread is holding*/
+    struct lock *lock_waiting;         /*The lock that the thread is waiting for.*/
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /**< List element. */
+    struct list childs;                 /* The list of childs */
+    struct child * thread_child;        /* Store the child of this thread */
+    int st_exit;                        /* Exit status */
+    struct semaphore *sema;              /* Control the child process's logic, finish parent waiting for child */
+    bool success;                       /* Judge whehter the child's thread execute successfully */
+    struct thread* parent;              /* Parent thread of the thread */
+
+    /* Structure for Task3 */
+    struct list files;                  /* List of opened files */
+    int file_fd;                        /* File's descriptor */
+    struct file * file_owned;           /* The file opened */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -140,15 +173,15 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 void  checkInvoke(struct thread* t,void* aux UNUSED);
-/*void thread_hold_the_lock(struct lock *lock);
+void thread_hold_the_lock(struct lock *lock);
 void thread_donate_priority(struct thread *t);
-*/
+
 bool priority_compare(const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux);
-/*
+
 bool lock_cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-/*void thread_remove_lock(struct lock *lock);
+void thread_remove_lock(struct lock *lock);
 void thread_update_prioriy(struct thread *t);
-*/
+
 #endif /**< threads/thread.h */
